@@ -77,6 +77,19 @@ export async function logout(): Promise<void> {
   await clearToken();
 }
 
+/**
+ * 개발 환경 전용: 카카오 OAuth 우회하고 테스트 유저 JWT 즉시 발급.
+ * 백엔드의 NODE_ENV=production 가드 덕분에 배포 환경에서 호출되면 404 받음.
+ */
+export async function loginAsDev(): Promise<MeUser> {
+  const data = await api<{ token: string; user: MeUser }>('/api/auth/dev', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  await setToken(data.token);
+  return data.user;
+}
+
 export async function fetchMe(): Promise<MeUser | null> {
   try {
     const data = await api<{ user: MeUser | null }>('/api/me');

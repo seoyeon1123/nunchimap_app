@@ -60,7 +60,7 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
     useEffect(() => {
       if (!markers) return;
       const key = markers
-        .map((m) => `${m.id}:${m.cached_signal ?? 'gray'}`)
+        .map((m) => `${m.id}:${m.cached_signal ?? 'gray'}:${m.active_count ?? 0}`)
         .sort()
         .join('|');
       if (key === lastMarkersKey.current) return;

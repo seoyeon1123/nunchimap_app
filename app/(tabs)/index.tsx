@@ -10,6 +10,7 @@ import KakaoMapView, {
 } from '@/components/KakaoMapView';
 import PlaceBottomSheet from '@/components/PlaceBottomSheet';
 import FilterChips from '@/components/FilterChips';
+import ActiveCheckInBanner from '@/components/ActiveCheckInBanner';
 import { fetchPlacesInBbox } from '@/lib/api/places';
 import { useFilterStore, useLocationStore, useUiStore } from '@/lib/store';
 
@@ -124,6 +125,7 @@ export default function MapTab() {
           </Text>
         </Pressable>
         <FilterChips />
+        <ActiveCheckInBanner />
         {error ? (
           <View style={styles.errorBanner}>
             <FontAwesome name="exclamation-circle" size={12} color="white" />

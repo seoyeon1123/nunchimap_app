@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SignalBadge from '@/components/SignalBadge';
+import LiveBoard from '@/components/LiveBoard';
 import {
   addFavorite,
   fetchPlaceDetail,
@@ -193,6 +194,14 @@ export default function PlaceDetailScreen() {
           </View>
         ) : null}
       </View>
+
+      <LiveBoard
+        placeId={placeId}
+        hasAny={
+          (data.live_summary?.count ?? 0) > 0 ||
+          (data.live_summary?.active_count ?? 0) > 0
+        }
+      />
 
       {/* 통계 */}
       <View style={styles.statRow}>

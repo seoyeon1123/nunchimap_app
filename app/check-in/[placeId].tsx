@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useMe } from '@/lib/hooks/useAuth';
 import { startGpsCheckIn } from '@/lib/api/checkins';
@@ -28,6 +29,7 @@ export default function CheckInScreen() {
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
   const id = Number(placeId);
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: me, isLoading: meLoading } = useMe();
   const [busy, setBusy] = useState(false);
 
@@ -63,6 +65,7 @@ export default function CheckInScreen() {
         gps_lng: loc.longitude,
         accuracy_m: loc.accuracy ?? undefined,
       });
+      qc.invalidateQueries({ queryKey: ['active-checkin'] });
       router.replace(
         `/check-out/${res.check_in_id}?place=${encodeURIComponent(res.place_name)}`,
       );

@@ -108,14 +108,37 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
       markerObjs = [];
     }
 
-    function makeMarkerImage(signal) {
+    function makeMarkerImage(signal, activeCount) {
       var color = SIGNAL_COLOR[signal] || SIGNAL_COLOR.gray;
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">' +
-        '<circle cx="11" cy="11" r="8" fill="' + color + '" stroke="white" stroke-width="2"/>' +
+      var n = Number(activeCount) || 0;
+
+      // 뱃지 없는 단순 마커
+      if (n <= 0) {
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">' +
+          '<circle cx="11" cy="11" r="8" fill="' + color + '" stroke="white" stroke-width="2"/>' +
+          '</svg>';
+        var src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        return new kakao.maps.MarkerImage(src, new kakao.maps.Size(22, 22), {
+          offset: new kakao.maps.Point(11, 11),
+        });
+      }
+
+      // 활성 체크인 뱃지 — 우상단에 빨간 원 + 숫자 (10+ 표기)
+      var label = n > 9 ? '9+' : String(n);
+      var w = 30, h = 30;
+      var bgGlow =
+        '<circle cx="11" cy="19" r="11" fill="' + color + '" opacity="0.25"/>';
+      var dot =
+        '<circle cx="11" cy="19" r="8" fill="' + color + '" stroke="white" stroke-width="2"/>';
+      var badge =
+        '<circle cx="22" cy="8" r="8" fill="#EF4444" stroke="white" stroke-width="1.5"/>' +
+        '<text x="22" y="11.5" font-family="-apple-system,sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">' + label + '</text>';
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+        bgGlow + dot + badge +
         '</svg>';
       var src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-      return new kakao.maps.MarkerImage(src, new kakao.maps.Size(22, 22), {
-        offset: new kakao.maps.Point(11, 11),
+      return new kakao.maps.MarkerImage(src, new kakao.maps.Size(w, h), {
+        offset: new kakao.maps.Point(11, 19),
       });
     }
 
@@ -136,7 +159,7 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
         var pos = new kakao.maps.LatLng(p.lat, p.lng);
         var marker = new kakao.maps.Marker({
           position: pos,
-          image: makeMarkerImage(p.cached_signal || 'gray'),
+          image: makeMarkerImage(p.cached_signal || 'gray', p.active_count || 0),
           title: p.name,
         });
         (function (placeId) {

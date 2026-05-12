@@ -64,3 +64,17 @@ export async function deleteCheckIn(
     { method: 'DELETE' },
   );
 }
+
+export interface ActiveCheckIn {
+  check_in_id: number;
+  place_id: number;
+  place_name: string | null;
+  started_at: string;
+}
+
+export async function fetchActiveCheckIn(): Promise<ActiveCheckIn | null> {
+  const data = await api<{ active: ActiveCheckIn | null }>(
+    '/api/check-ins/active',
+  );
+  return data.active;
+}

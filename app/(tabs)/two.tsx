@@ -13,10 +13,11 @@ import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-import { useMe, useLogin, useLogout } from '@/lib/hooks/useAuth';
+import { useMe, useLogin, useDevLogin, useLogout } from '@/lib/hooks/useAuth';
 import { fetchMyCheckIns } from '@/lib/api/me';
 import { deleteCheckIn } from '@/lib/api/checkins';
 import { fetchFavorites } from '@/lib/api/places';
+import ActiveCheckInBanner from '@/components/ActiveCheckInBanner';
 import { METHOD_LABEL, SIGNAL_DOT } from '@/lib/labels';
 import {
   fontSize,
@@ -33,8 +34,9 @@ WebBrowser.maybeCompleteAuthSession();
 export default function MeTab() {
   const me = useMe();
   const login = useLogin();
+  const devLogin = useDevLogin();
   const logout = useLogout();
-  const busy = login.isPending || logout.isPending;
+  const busy = login.isPending || devLogin.isPending || logout.isPending;
 
   const checkIns = useQuery({
     queryKey: ['my-checkins'],
@@ -86,6 +88,26 @@ export default function MeTab() {
               {busy ? '연결 중…' : '카카오로 시작하기'}
             </Text>
           </Pressable>
+
+          {__DEV__ ? (
+            <Pressable
+              onPress={() => {
+                devLogin.mutate(undefined, {
+                  onError: (e) =>
+                    Alert.alert(
+                      'DEV 로그인 실패',
+                      e instanceof Error ? e.message : 'unknown',
+                    ),
+                });
+              }}
+              disabled={busy}
+              style={[styles.btnDev, busy && { opacity: 0.6 }]}
+            >
+              <Text style={styles.btnDevText}>
+                🔧 {busy ? '...' : 'DEV 로그인 (테스트용)'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </SafeAreaView>
     );
@@ -112,6 +134,8 @@ export default function MeTab() {
           <Text style={styles.logoutText}>{busy ? '...' : '로그아웃'}</Text>
         </Pressable>
       </View>
+
+      <ActiveCheckInBanner style={{ marginHorizontal: 0, marginTop: 0 }} />
 
       {favorites.data && favorites.data.length > 0 ? (
         <View style={{ gap: spacing.sm }}>
@@ -296,6 +320,22 @@ const styles = StyleSheet.create({
     color: '#3C1E1E',
     fontWeight: fontWeight.bold as '700',
     fontSize: fontSize.body,
+  },
+  btnDev: {
+    width: '100%',
+    backgroundColor: palette.subtle,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderStyle: 'dashed',
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  btnDevText: {
+    color: palette.textMuted,
+    fontWeight: fontWeight.semibold as '600',
+    fontSize: fontSize.small,
   },
   header: {
     flexDirection: 'row',

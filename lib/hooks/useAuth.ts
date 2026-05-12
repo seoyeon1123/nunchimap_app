@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMe, loginWithKakao, logout, MeUser } from '../auth';
+import { fetchMe, loginAsDev, loginWithKakao, logout, MeUser } from '../auth';
 import { KAKAO_REST_API_KEY } from '../config';
 
 const ME_KEY = ['me'] as const;
@@ -27,12 +27,25 @@ export function useLogin() {
   });
 }
 
+export function useDevLogin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: loginAsDev,
+    onSuccess: (user) => {
+      qc.setQueryData(ME_KEY, user);
+    },
+  });
+}
+
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: logout,
     onSuccess: () => {
       qc.setQueryData(ME_KEY, null);
+      qc.removeQueries({ queryKey: ['active-checkin'] });
+      qc.removeQueries({ queryKey: ['my-checkins'] });
+      qc.removeQueries({ queryKey: ['favorites'] });
     },
   });
 }

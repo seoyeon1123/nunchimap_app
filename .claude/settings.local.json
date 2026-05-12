@@ -3,7 +3,29 @@
     "allow": [
       "Bash(git check-ignore *)",
       "Bash(ipconfig)",
-      "PowerShell(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet|VirtualBox' -and $_.IPAddress -notmatch '^169\\\\.' } | Select-Object InterfaceAlias, IPAddress)"
+      "PowerShell(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet|VirtualBox' -and $_.IPAddress -notmatch '^169\\\\.' } | Select-Object InterfaceAlias, IPAddress)",
+      "Bash(curl -sS -A \"Mozilla/5.0 \\(iPhone; CPU iPhone OS 17_0 like Mac OS X\\) AppleWebKit/605.1.15 \\(KHTML, like Gecko\\) Version/17.0 Mobile/15E148 Safari/604.1\" -H \"Referer: https://place.map.kakao.com/\" \"https://place.map.kakao.com/main/v/53717932\")",
+      "Bash(curl -sS -A \"Mozilla/5.0 \\(iPhone; CPU iPhone OS 17_0 like Mac OS X\\) AppleWebKit/605.1.15 \\(KHTML, like Gecko\\) Version/17.0 Mobile/15E148 Safari/604.1\" \"https://m.place.map.kakao.com/main/v/53717932\")",
+      "Bash(curl -sSL -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/121.0.0.0 Safari/537.36\" \"https://place.map.kakao.com/53717932\")",
+      "Bash(curl -sSL -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36\" -H \"Referer: https://place.map.kakao.com/53717932\" \"https://place-api.map.kakao.com/places/main/v/53717932\")",
+      "Bash(curl -sSL -i -A \"Mozilla/5.0\" -H \"Referer: https://place.map.kakao.com/53717932\" \"https://place-api.map.kakao.com/places/main/v/53717932\")",
+      "Bash(curl -sSL -i -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/121.0.0.0 Safari/537.36' -H 'Referer: https://place.map.kakao.com/' -H 'Origin: https://place.map.kakao.com' -H 'Accept: application/json, text/plain, */*' https://place-api.map.kakao.com/places/main/v/53717932)",
+      "Bash(curl -sSL -A \"Mozilla/5.0\" \"https://t1.kakaocdn.net/kakaomapweb/place_new/prod/2b22330/index.js\")",
+      "Bash(grep -oE \"place-api\\\\.map\\\\.kakao\\\\.com[^\\\\\"'\\\\`]*\")",
+      "Bash(curl -sSL -A Mozilla/5.0 https://t1.kakaocdn.net/kakaomapweb/place_new/prod/2b22330/js/__TRACKED_VAR__.js)",
+      "Bash(curl -sSL -A \"Mozilla/5.0\" \"https://t1.kakaocdn.net/kakaomapweb/place_new/prod/2b22330/js/sharabQS.js\")",
+      "Bash(grep -oE \"\\(panel3[^\\\\\"'\\\\`]{0,80}|main/v[^\\\\\"'\\\\`]{0,40}|api[^\\\\\"'\\\\`]{0,80}\\\\?[^\\\\\"'\\\\`]{0,80}\\)\")",
+      "Bash(grep -oE \"yn=[^,;]{0,80}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \"panel3.{0,30}\\\\??.{0,50}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \".{20}\\\\.get\\\\\\(Ag.{0,200}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \"Ag,\\\\{[^}]{0,200}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \"axios[^}]{0,300}panel3[^}]{0,200}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \".{0,60}Ag\\\\\\)[^,;]{0,100}\" /tmp/kakaomap_chunk.js)",
+      "Bash(grep -oE \".{0,80}Ag,[^,;]{0,200}\" /tmp/kakaomap_chunk.js)",
+      "Bash(curl -sSL -i -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/121.0.0.0 Safari/537.36' -H 'Referer: https://place.map.kakao.com/' -H 'Origin: https://place.map.kakao.com' -H 'Accept: application/json, text/plain, */*' https://place-api.map.kakao.com/places/panel3/53717932)",
+      "Bash(npx tsc *)",
+      "Bash(npx --prefix C:/Users/lsy_0/Documents/VibeMap/nunchimap tsc -p C:/Users/lsy_0/Documents/VibeMap/nunchimap --noEmit)",
+      "Bash(npx tsx *)"
     ]
   }
 }
