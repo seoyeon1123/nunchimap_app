@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,18 +8,29 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  Stack,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Location from 'expo-location';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SignalBadge from '@/components/SignalBadge';
+import PopularTimes from '@/components/PopularTimes';
 import LiveBoard from '@/components/LiveBoard';
+import LivePostComposer from '@/components/LivePostComposer';
 import {
   addFavorite,
   fetchPlaceDetail,
   removeFavorite,
   voteTag,
 } from '@/lib/api/places';
+import { fetchActiveCheckIn, reportCheckIn, startGpsCheckIn } from '@/lib/api/checkins';
+import { getCurrentLocationOrPrompt } from '@/lib/location';
+import { scheduleCheckInReminder } from '@/lib/checkInReminder';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useLocationStore } from '@/lib/store';
 import { formatDistanceWithWalk, haversineMeters } from '@/lib/geo';
@@ -42,11 +54,34 @@ export default function PlaceDetailScreen() {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const userLocation = useLocationStore((s) => s.userLocation);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [startingCheckIn, setStartingCheckIn] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['place', placeId],
     queryFn: () => fetchPlaceDetail(placeId),
     enabled: Number.isFinite(placeId),
+  });
+
+  // 리뷰 작성 후 router.replace 로 돌아오면 캐시된 stale 데이터가 잠깐 보이는 문제.
+  // 화면이 포커스될 때마다 invalidate 해서 항상 최신 데이터를 받게 한다.
+  useFocusEffect(
+    useCallback(() => {
+      qc.invalidateQueries({ queryKey: ['place', placeId] });
+    }, [qc, placeId]),
+  );
+
+  // 라이브 공유 버튼 노출 조건은 백엔드 PlaceDetailResponse.can_post_live 그대로 사용
+  // (진행 중 체크인 + 종료 후 30분 grace 모두 커버)
+  const canShareLive = !!data?.can_post_live;
+  const hasActiveCheckin = !!data?.has_active_checkin;
+
+  // 활성 체크인의 check_in_id 가 필요할 때만 따로 조회
+  const activeCheckIn = useQuery({
+    queryKey: ['active-checkin'],
+    queryFn: fetchActiveCheckIn,
+    enabled: !!me && hasActiveCheckin,
+    staleTime: 30_000,
   });
 
   const tagVoteMutation = useMutation({
@@ -65,6 +100,38 @@ export default function PlaceDetailScreen() {
       Alert.alert('실패', msg);
     },
   });
+
+  const reportMutation = useMutation({
+    mutationFn: (checkInId: number) => reportCheckIn(checkInId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['place', placeId] });
+      Alert.alert('신고 접수', '검토 후 처리할게요.');
+    },
+    onError: (e) => {
+      const msg =
+        e instanceof ApiError && (e.body as { error?: string })?.error
+          ? (e.body as { error: string }).error
+          : e instanceof Error
+            ? e.message
+            : '신고 실패';
+      Alert.alert('실패', msg);
+    },
+  });
+
+  function confirmReport(checkInId: number) {
+    if (!me) {
+      Alert.alert('로그인 필요', '신고는 로그인 후 사용할 수 있어요.');
+      return;
+    }
+    Alert.alert('리뷰 신고', '부적절한 내용인가요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '신고',
+        style: 'destructive',
+        onPress: () => reportMutation.mutate(checkInId),
+      },
+    ]);
+  }
 
   const favMutation = useMutation({
     mutationFn: (next: boolean) =>
@@ -93,6 +160,58 @@ export default function PlaceDetailScreen() {
       return;
     }
     favMutation.mutate(!data?.is_favorited);
+  }
+
+  /**
+   * 카공 시작 — 확인 Alert → GPS 인증 → check-in 시작 → 1시간 알림 예약.
+   * 별도 화면으로 안 보내고 카페 상세 그대로 둔 채 active 상태로 전환.
+   */
+  function handleStartStudy() {
+    if (!me) {
+      Alert.alert('로그인 필요', '카공 시작은 로그인 후 사용할 수 있어요.');
+      return;
+    }
+    if (!data) return;
+    const placeName = data.place.name;
+    Alert.alert(
+      '카공 시작',
+      `"${placeName}"에서 카공을 시작할까요?\n현재 위치를 인증해 라이브로 공유돼요.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '시작',
+          onPress: async () => {
+            setStartingCheckIn(true);
+            try {
+              const loc = await getCurrentLocationOrPrompt(Location.Accuracy.High);
+              if (!loc) {
+                setStartingCheckIn(false);
+                return;
+              }
+              const res = await startGpsCheckIn({
+                place_id: placeId,
+                gps_lat: loc.latitude,
+                gps_lng: loc.longitude,
+                accuracy_m: loc.accuracy ?? undefined,
+              });
+              void scheduleCheckInReminder(res.check_in_id, res.place_name);
+              qc.invalidateQueries({ queryKey: ['active-checkin'] });
+              qc.invalidateQueries({ queryKey: ['place', placeId] });
+            } catch (e) {
+              const msg =
+                e instanceof ApiError && (e.body as { error?: string })?.error
+                  ? (e.body as { error: string }).error
+                  : e instanceof Error
+                    ? e.message
+                    : '카공 시작 실패';
+              Alert.alert('실패', msg);
+            } finally {
+              setStartingCheckIn(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   function handleTagPress(code: string) {
@@ -203,6 +322,11 @@ export default function PlaceDetailScreen() {
         }
       />
 
+      <PopularTimes
+        placeId={placeId}
+        activeCount={data.live_summary?.active_count ?? 0}
+      />
+
       {/* 통계 */}
       <View style={styles.statRow}>
         <Stat
@@ -264,13 +388,18 @@ export default function PlaceDetailScreen() {
 
       {/* 최근 리뷰 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>최근 리뷰</Text>
+        <Text style={styles.sectionTitle}>최근 리뷰 (길게 누르면 신고)</Text>
         {recent_reviews.length === 0 ? (
           <Text style={styles.muted}>아직 리뷰가 없어요.</Text>
         ) : (
           <View style={{ gap: spacing.sm }}>
             {recent_reviews.map((r) => (
-              <View key={r.id} style={styles.reviewItem}>
+              <Pressable
+                key={r.id}
+                onLongPress={() => confirmReport(r.id)}
+                delayLongPress={500}
+                style={styles.reviewItem}
+              >
                 <View style={styles.reviewHead}>
                   <Text style={styles.reviewSignal}>
                     {SIGNAL_DOT[r.signal]}
@@ -289,7 +418,7 @@ export default function PlaceDetailScreen() {
                 {r.text_review ? (
                   <Text style={styles.reviewText}>{r.text_review}</Text>
                 ) : null}
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -303,21 +432,69 @@ export default function PlaceDetailScreen() {
           { paddingBottom: Math.max(insets.bottom, spacing.sm) },
         ]}
       >
-        <Pressable
-          style={[styles.btn, styles.primary]}
-          onPress={() => router.push(`/check-in/${placeId}`)}
-        >
-          <FontAwesome name="check-circle" size={16} color="white" />
-          <Text style={styles.primaryText}>체크인</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.btn, styles.secondary]}
-          onPress={() => router.push(`/review/manual/${placeId}`)}
-        >
-          <FontAwesome name="pencil" size={14} color={palette.text} />
-          <Text style={styles.secondaryText}>리뷰</Text>
-        </Pressable>
+        {hasActiveCheckin && activeCheckIn.data ? (
+          // 카공 진행 중 — [라이브 공유] + [카공 종료]
+          <>
+            {canShareLive ? (
+              <Pressable
+                style={[styles.btn, styles.ghost]}
+                onPress={() => setComposerOpen(true)}
+              >
+                <FontAwesome name="bullhorn" size={14} color={palette.text} />
+                <Text style={styles.ghostText}>라이브 공유</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={[styles.btn, styles.primary]}
+              onPress={() =>
+                router.push(
+                  `/check-out/${activeCheckIn.data!.check_in_id}?place=${encodeURIComponent(place.name)}`,
+                )
+              }
+            >
+              <FontAwesome name="check" size={15} color="white" />
+              <Text style={styles.primaryText}>카공 종료</Text>
+            </Pressable>
+          </>
+        ) : (
+          // 시작 전 — [리뷰 작성] + [카공 시작]
+          <>
+            <Pressable
+              style={[styles.btn, styles.ghost]}
+              onPress={() => router.push(`/check-in/${placeId}`)}
+              disabled={startingCheckIn}
+            >
+              <FontAwesome name="pencil" size={14} color={palette.text} />
+              <Text style={styles.ghostText}>리뷰 작성</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.btn,
+                styles.primary,
+                startingCheckIn && { opacity: 0.6 },
+              ]}
+              onPress={handleStartStudy}
+              disabled={startingCheckIn}
+            >
+              {startingCheckIn ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <FontAwesome name="location-arrow" size={15} color="white" />
+                  <Text style={styles.primaryText}>카공 시작</Text>
+                </>
+              )}
+            </Pressable>
+          </>
+        )}
       </View>
+
+      <LivePostComposer
+        visible={composerOpen}
+        placeId={placeId}
+        placeName={place.name}
+        onClose={() => setComposerOpen(false)}
+      />
     </View>
   );
 }
@@ -470,19 +647,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     ...shadow.md,
   },
-  primary: { flex: 2, backgroundColor: palette.primary },
+  primary: { flex: 1, backgroundColor: palette.primary },
   primaryText: {
     color: 'white',
     fontWeight: fontWeight.semibold as '600',
     fontSize: fontSize.body,
   },
-  secondary: {
+  ghost: {
     flex: 1,
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
   },
-  secondaryText: {
+  ghostText: {
     color: palette.text,
     fontWeight: fontWeight.semibold as '600',
     fontSize: fontSize.body,

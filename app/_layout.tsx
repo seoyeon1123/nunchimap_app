@@ -6,7 +6,8 @@ import {
 } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
@@ -26,7 +27,8 @@ export const unstable_settings = {
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+// 같은 사유로 reject 가능 — 무시.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -41,7 +43,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      SplashScreen.hideAsync();
+      // iOS 에서 modal/fullScreenModal 라우트가 함께 mount 되면 splash 가 등록 안 된
+      // view controller 에 hideAsync 가 호출돼서 reject 함. 동작엔 영향 없는 잡음이라 swallow.
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [loaded]);
 
@@ -66,6 +70,7 @@ const navTheme = {
 };
 
 function RootLayoutNav() {
+  const router = useRouter();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -88,6 +93,30 @@ function RootLayoutNav() {
     });
     return () => setOnUnauthorized(null);
   }, [queryClient]);
+
+  // 푸시 알림 탭 → 해당 카페 상세 or 체크아웃 화면으로 이동
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      const data = resp.notification.request.content.data as {
+        type?: string;
+        place_id?: number;
+        check_in_id?: number;
+        place_name?: string;
+      };
+      if (data?.type === 'live_post' && typeof data.place_id === 'number') {
+        router.push(`/places/${data.place_id}`);
+      } else if (
+        data?.type === 'checkin_ping' &&
+        typeof data.check_in_id === 'number'
+      ) {
+        const name = data.place_name ?? '';
+        router.push(
+          `/check-out/${data.check_in_id}?place=${encodeURIComponent(name)}`,
+        );
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -113,7 +142,6 @@ function RootLayoutNav() {
               gestureEnabled: false,
             }}
           />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           <Stack.Screen name="places/[id]" options={{ title: '' }} />
           <Stack.Screen
             name="search"

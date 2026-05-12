@@ -40,6 +40,36 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
       font-family: -apple-system, sans-serif; font-weight: 700; font-size: 13px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
+    /* 내 위치 — 브랜드 이미지 + 펄스 */
+    .nm-user-wrap {
+      position: relative; width: 48px; height: 48px;
+      pointer-events: none;
+    }
+    .nm-user-pulse {
+      position: absolute; left: 50%; top: 50%;
+      width: 48px; height: 48px; margin: -24px 0 0 -24px;
+      border-radius: 50%;
+      background: #2563EB; opacity: 0.3;
+      animation: nm-user-pulse 1.8s ease-out infinite;
+    }
+    .nm-user-icon {
+      position: absolute; left: 50%; top: 50%;
+      width: 40px; height: 40px; margin: -20px 0 0 -20px;
+      border-radius: 50%;
+      background-color: #FFFFFF;
+      background-size: cover; background-position: center;
+      background-repeat: no-repeat;
+      border: 2.5px solid #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    /* 이미지 로드 전 임시 점 (브랜드 컬러) */
+    .nm-user-icon.nm-user-icon-fallback {
+      background-color: #2563EB;
+    }
+    @keyframes nm-user-pulse {
+      0%   { transform: scale(0.5); opacity: 0.5; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
   </style>
 </head>
 <body>
@@ -55,6 +85,10 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
     var mapInstance = null;
     var clusterer = null;
     var markerObjs = [];
+    var userOverlay = null;
+    var userIconEl = null; // 현재 마커의 이미지 element (icon URI 변경 시 갱신)
+    var userIconUri = null;
+    var pendingUserLoc = null; // map ready 전에 도착한 좌표 버퍼
     var sdkLoaded = false;
     var sdkLoadError = null;
 
@@ -183,12 +217,73 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
       if (typeof level === 'number') mapInstance.setLevel(level);
     }
 
+    function applyUserIcon() {
+      logToHost('info', 'applyUserIcon: hasEl=' + !!userIconEl + ' hasUri=' + !!userIconUri);
+      if (!userIconEl) return;
+      if (userIconUri) {
+        userIconEl.style.backgroundImage = 'url(' + userIconUri + ')';
+        userIconEl.classList.remove('nm-user-icon-fallback');
+      } else {
+        userIconEl.style.backgroundImage = '';
+        userIconEl.classList.add('nm-user-icon-fallback');
+      }
+    }
+
+    function setUserIcon(uri) {
+      logToHost('info', 'setUserIcon called, uriLen=' + (uri ? uri.length : 0));
+      userIconUri = uri || null;
+      applyUserIcon();
+    }
+
+    function setUserLocation(lat, lng) {
+      // map 준비 전이면 버퍼링 후 init 끝나고 적용
+      if (!mapInstance) {
+        pendingUserLoc = lat == null || lng == null ? null : { lat: lat, lng: lng };
+        return;
+      }
+      if (lat == null || lng == null) {
+        if (userOverlay) {
+          userOverlay.setMap(null);
+          userOverlay = null;
+          userIconEl = null;
+        }
+        return;
+      }
+      var pos = new kakao.maps.LatLng(lat, lng);
+      if (userOverlay) {
+        userOverlay.setPosition(pos);
+        return;
+      }
+      var content = document.createElement('div');
+      content.className = 'nm-user-wrap';
+      var pulse = document.createElement('div');
+      pulse.className = 'nm-user-pulse';
+      var icon = document.createElement('div');
+      icon.className = 'nm-user-icon nm-user-icon-fallback';
+      content.appendChild(pulse);
+      content.appendChild(icon);
+      userIconEl = icon;
+      applyUserIcon();
+      userOverlay = new kakao.maps.CustomOverlay({
+        position: pos,
+        content: content,
+        xAnchor: 0.5,
+        yAnchor: 0.5,
+        zIndex: 9999,
+      });
+      userOverlay.setMap(mapInstance);
+    }
+
     function handleHostMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'renderMarkers' && Array.isArray(msg.places)) {
         renderMarkers(msg.places);
       } else if (msg.type === 'setCenter') {
         setCenter(msg.lat, msg.lng, msg.level);
+      } else if (msg.type === 'setUserLocation') {
+        setUserLocation(msg.lat, msg.lng);
+      } else if (msg.type === 'setUserIcon') {
+        setUserIcon(msg.uri);
       } else if (msg.type === 'requestBounds') {
         emitBounds();
       }
@@ -246,6 +341,11 @@ export function buildKakaoMapHtml({ latitude, longitude, level }: KakaoMapOption
             debounceId = setTimeout(emitBounds, 200);
           });
           setTimeout(emitBounds, 50);
+          // map ready 전 버퍼된 내 위치 적용
+          if (pendingUserLoc) {
+            setUserLocation(pendingUserLoc.lat, pendingUserLoc.lng);
+            pendingUserLoc = null;
+          }
           postToHost({ type: 'ready' });
         } catch (e) {
           showFallback('지도 초기화 실패', e && e.message ? e.message : '');

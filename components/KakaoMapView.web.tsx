@@ -5,7 +5,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { Image, StyleSheet, View, Text } from 'react-native';
 import { KAKAO_JS_KEY } from '@/lib/config';
 import { buildKakaoMapHtml } from '@/lib/kakaoMapHtml';
 import type {
@@ -23,6 +23,7 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
       longitude = 126.978,
       level = 5,
       markers,
+      userLocation,
       onBoundsChange,
       onMarkerPress,
       onReady,
@@ -63,6 +64,35 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
         '*',
       );
     }, [markers]);
+
+    const lastUserLocKey = useRef<string>('');
+    useEffect(() => {
+      const key = userLocation
+        ? `${userLocation.lat.toFixed(6)},${userLocation.lng.toFixed(6)}`
+        : 'null';
+      if (key === lastUserLocKey.current) return;
+      lastUserLocKey.current = key;
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          type: 'setUserLocation',
+          lat: userLocation?.lat ?? null,
+          lng: userLocation?.lng ?? null,
+        },
+        '*',
+      );
+    }, [userLocation]);
+
+    // 웹은 require 결과를 그대로 URL 로 쓸 수 있음 (Metro/Webpack 모두 자산 URL 반환)
+    useEffect(() => {
+      const src = Image.resolveAssetSource(
+        require('@/assets/images/mainImage.png'),
+      );
+      if (!src?.uri) return;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'setUserIcon', uri: src.uri },
+        '*',
+      );
+    }, []);
 
     useEffect(() => {
       function onMessage(e: MessageEvent) {

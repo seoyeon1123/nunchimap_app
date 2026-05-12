@@ -70,6 +70,10 @@ export interface PlaceDetailResponse {
   tags: TagAgg[];
   verified_count: number;
   is_favorited?: boolean; // 로그인 사용자만 채워짐
+  /** 진행 중 체크인 OR 종료 후 30분 이내 — 라이브 글 작성 자격 */
+  can_post_live?: boolean;
+  /** 이 카페에 진행 중(아직 ended_at 없음) 체크인 보유 */
+  has_active_checkin?: boolean;
   live_summary: LiveSummary;
 }
 

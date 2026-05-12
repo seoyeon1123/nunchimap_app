@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -164,6 +165,13 @@ function LiveRow({ post, placeId }: { post: LivePost; placeId: number }) {
             좌석 {OCCUPANCY_LABEL[post.occupancy]}
           </Text>
         )}
+        {post.photo_url ? (
+          <Image
+            source={{ uri: post.photo_url }}
+            style={styles.photo}
+            resizeMode="cover"
+          />
+        ) : null}
         <Text style={styles.rowMeta}>
           {OCCUPANCY_LABEL[post.occupancy]} · {minutesAgoText(post.minutes_ago)}
         </Text>
@@ -314,5 +322,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     color: palette.textMuted,
     fontStyle: 'italic',
+  },
+  photo: {
+    marginTop: 6,
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: radius.md,
+    backgroundColor: palette.subtle,
   },
 });

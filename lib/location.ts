@@ -1,14 +1,25 @@
 import { Alert, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { DEV_USER_LOCATION } from './config';
 
 /**
  * 위치 권한 받아 현재 좌표 반환.
  * 거부됐으면 사용자에게 안내 + 설정 열기 옵션 제공.
  * 권한 거부 / 위치 조회 실패 시 null 반환.
+ *
+ * 개발 모드에서 DEV_USER_LOCATION 이 설정돼 있으면 GPS 호출 없이 그 좌표를 반환.
  */
 export async function getCurrentLocationOrPrompt(
   accuracy: Location.Accuracy = Location.Accuracy.Balanced,
 ): Promise<{ latitude: number; longitude: number; accuracy: number | null } | null> {
+  if (DEV_USER_LOCATION) {
+    return {
+      latitude: DEV_USER_LOCATION.lat,
+      longitude: DEV_USER_LOCATION.lng,
+      accuracy: 10,
+    };
+  }
+
   const { status, canAskAgain } =
     await Location.requestForegroundPermissionsAsync();
 

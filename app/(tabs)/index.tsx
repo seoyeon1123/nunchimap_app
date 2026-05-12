@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import * as Location from 'expo-location';
 import { getCurrentLocationOrPrompt } from '@/lib/location';
 import KakaoMapView, {
   KakaoMapHandle,
@@ -13,9 +14,8 @@ import FilterChips from '@/components/FilterChips';
 import ActiveCheckInBanner from '@/components/ActiveCheckInBanner';
 import { fetchPlacesInBbox } from '@/lib/api/places';
 import { useFilterStore, useLocationStore, useUiStore } from '@/lib/store';
-
-// 앱 세션당 한 번만 스플래시 표시 (Hot reload 시엔 다시 표시되어 개발 편함)
-let splashShownThisSession = false;
+import { hasSeenOnboarding } from '@/lib/onboarding';
+import { DEV_USER_LOCATION } from '@/lib/config';
 import {
   fontSize,
   fontWeight,
@@ -35,11 +35,15 @@ export default function MapTab() {
 
   const visibleSignals = useFilterStore((s) => s.visibleSignals);
   const requiredTags = useFilterStore((s) => s.requiredTags);
+  const userLocation = useLocationStore((s) => s.userLocation);
 
   const pendingFromSearch = useUiStore((s) => s.pendingPlaceFromSearch);
   const setPending = useUiStore((s) => s.setPendingPlaceFromSearch);
+  const lastView = useUiStore((s) => s.lastView);
+  const setLastView = useUiStore((s) => s.setLastView);
 
   const lastBboxRef = useRef<string | null>(null);
+  const lastBoundsRef = useRef<MapBounds | null>(null);
   const inflightRef = useRef<AbortController | null>(null);
 
   // 검색에서 선택된 장소가 들어오면 그 좌표로 이동 + 바텀시트 표시
@@ -51,15 +55,23 @@ export default function MapTab() {
     setPending(null);
   }, [pendingFromSearch, setPending]);
 
-  // 앱 켤 때마다 스플래시(welcome) 한 번 표시
+  // 첫 설치 후 한 번만 welcome 표시 (이후엔 사용자가 명시적으로 다시 볼 수 없음)
   useEffect(() => {
-    if (splashShownThisSession) return;
-    splashShownThisSession = true;
-    router.push('/welcome');
+    let cancelled = false;
+    (async () => {
+      const seen = await hasSeenOnboarding();
+      if (!cancelled && !seen) router.push('/welcome');
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const onBoundsChange = useCallback(
     async (b: MapBounds) => {
+      lastBoundsRef.current = b;
+      // 마지막 지도 위치 저장 — 다음 앱 실행 때 복원
+      setLastView({ lat: b.center.lat, lng: b.center.lng, level: b.level });
       const key = `${b.sw.lng.toFixed(4)},${b.sw.lat.toFixed(4)},${b.ne.lng.toFixed(4)},${b.ne.lat.toFixed(4)}|${visibleSignals.join('+')}|${requiredTags.join('+')}`;
       if (lastBboxRef.current === key) return;
       lastBboxRef.current = key;
@@ -93,7 +105,52 @@ export default function MapTab() {
     [markers],
   );
 
+  // 탭에 다시 포커스되면 마커 갱신 (리뷰 작성 후 신호등 변경 등 반영)
+  useFocusEffect(
+    useCallback(() => {
+      const b = lastBoundsRef.current;
+      if (!b) return;
+      lastBboxRef.current = null; // 디듭 우회 → 재요청 강제
+      onBoundsChange(b);
+    }, [onBoundsChange]),
+  );
+
   const setUserLocation = useLocationStore((s) => s.setUserLocation);
+
+  // 권한 이미 허용된 경우에만 자동으로 내 위치 가져오기 (prompt 없이)
+  // dev 좌표가 설정돼 있으면 GPS 안 부르고 바로 그 좌표 사용
+  useEffect(() => {
+    if (DEV_USER_LOCATION) {
+      setUserLocation({
+        lat: DEV_USER_LOCATION.lat,
+        lng: DEV_USER_LOCATION.lng,
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          updatedAt: Date.now(),
+        });
+      } catch {
+        // 조용히 무시
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setUserLocation]);
+
   const onLocate = useCallback(async () => {
     const loc = await getCurrentLocationOrPrompt();
     if (!loc) return;
@@ -109,7 +166,15 @@ export default function MapTab() {
     <View style={styles.container}>
       <KakaoMapView
         ref={mapRef}
+        latitude={lastView?.lat}
+        longitude={lastView?.lng}
+        level={lastView?.level}
         markers={markers}
+        userLocation={
+          userLocation
+            ? { lat: userLocation.lat, lng: userLocation.lng }
+            : null
+        }
         onBoundsChange={onBoundsChange}
         onMarkerPress={onMarkerPress}
       />

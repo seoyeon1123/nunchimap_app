@@ -4,9 +4,12 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import { Asset } from 'expo-asset';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { KAKAO_JS_KEY } from '@/lib/config';
 import { buildKakaoMapHtml } from '@/lib/kakaoMapHtml';
 import type {
@@ -29,6 +32,7 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
       longitude = 126.978,
       level = 5,
       markers,
+      userLocation,
       onBoundsChange,
       onMarkerPress,
       onReady,
@@ -36,12 +40,65 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
     forwardedRef,
   ) {
     const ref = useRef<WebView>(null);
+    const [isReady, setIsReady] = useState(false);
     const html = useMemo(
       () => buildKakaoMapHtml({ latitude, longitude, level }),
       // 초기 1회만
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [],
     );
+
+    // 내 위치 마커용 mainImage 로드 — 원본이 1254px 이라 WebView inject 용량 한계.
+    // 80px 로 리사이즈해서 base64 로 변환해 WebView 에 전달.
+    const [userIconDataUri, setUserIconDataUri] = useState<string | null>(null);
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const asset = Asset.fromModule(
+            require('@/assets/images/mainImage.png'),
+          );
+          await asset.downloadAsync();
+          // eslint-disable-next-line no-console
+          console.log('[KakaoMap] asset localUri=', asset.localUri);
+          if (!asset.localUri) return;
+          const result = await ImageManipulator.manipulateAsync(
+            asset.localUri,
+            [{ resize: { width: 80 } }],
+            {
+              format: ImageManipulator.SaveFormat.PNG,
+              base64: true,
+              compress: 1,
+            },
+          );
+          // eslint-disable-next-line no-console
+          console.log(
+            '[KakaoMap] manipulateAsync done, b64Len=',
+            result.base64?.length ?? 0,
+          );
+          if (cancelled || !result.base64) return;
+          setUserIconDataUri(`data:image/png;base64,${result.base64}`);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.log('[KakaoMap] user icon load failed', e);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+
+    useEffect(() => {
+      if (!isReady || !userIconDataUri) return;
+      // eslint-disable-next-line no-console
+      console.log(
+        '[KakaoMap] inject setUserIcon (ready), len=',
+        userIconDataUri.length,
+      );
+      ref.current?.injectJavaScript(
+        injectMessage({ type: 'setUserIcon', uri: userIconDataUri }),
+      );
+    }, [isReady, userIconDataUri]);
 
     useImperativeHandle(
       forwardedRef,
@@ -58,7 +115,7 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
     // 동일한 마커 셋이면 inject 생략 — WebView 통신 비용 감소
     const lastMarkersKey = useRef<string>('');
     useEffect(() => {
-      if (!markers) return;
+      if (!isReady || !markers) return;
       const key = markers
         .map((m) => `${m.id}:${m.cached_signal ?? 'gray'}:${m.active_count ?? 0}`)
         .sort()
@@ -68,7 +125,25 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
       ref.current?.injectJavaScript(
         injectMessage({ type: 'renderMarkers', places: markers }),
       );
-    }, [markers]);
+    }, [isReady, markers]);
+
+    // 내 위치 마커 — 좌표 변경되면 inject
+    const lastUserLocKey = useRef<string>('');
+    useEffect(() => {
+      if (!isReady) return;
+      const key = userLocation
+        ? `${userLocation.lat.toFixed(6)},${userLocation.lng.toFixed(6)}`
+        : 'null';
+      if (key === lastUserLocKey.current) return;
+      lastUserLocKey.current = key;
+      ref.current?.injectJavaScript(
+        injectMessage({
+          type: 'setUserLocation',
+          lat: userLocation?.lat ?? null,
+          lng: userLocation?.lng ?? null,
+        }),
+      );
+    }, [isReady, userLocation]);
 
     if (!KAKAO_JS_KEY) {
       return (
@@ -99,6 +174,12 @@ const KakaoMapView = forwardRef<KakaoMapHandle, KakaoMapProps>(
       } else if (m.type === 'markerClick' && typeof m.placeId === 'number') {
         onMarkerPress?.(m.placeId);
       } else if (m.type === 'ready') {
+        // eslint-disable-next-line no-console
+        console.log('[KakaoMap] WebView ready');
+        setIsReady(true);
+        // 다음 마커 주입을 위해 dedup 키 리셋 (ready 이후에 한 번 더 보내야 함)
+        lastMarkersKey.current = '';
+        lastUserLocKey.current = '';
         onReady?.();
       } else if (m.type === 'log') {
         // WebView 내부 진단 — 카카오 SDK 로드 실패 등 디버그용

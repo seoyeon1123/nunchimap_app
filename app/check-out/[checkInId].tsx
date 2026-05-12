@@ -16,9 +16,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import SignalPicker from '@/components/SignalPicker';
 import TagPicker from '@/components/TagPicker';
-import LivePostComposer from '@/components/LivePostComposer';
 import { finishGpsCheckIn } from '@/lib/api/checkins';
 import { ApiError } from '@/lib/api';
+import { cancelCheckInReminder } from '@/lib/checkInReminder';
 import {
   fontSize,
   fontWeight,
@@ -43,8 +43,6 @@ export default function CheckOutScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [liveOpen, setLiveOpen] = useState(false);
-  const [finishedPlaceId, setFinishedPlaceId] = useState<number | null>(null);
 
   async function submit() {
     if (!signal) {
@@ -58,11 +56,15 @@ export default function CheckOutScreen() {
         tags: tags.length > 0 ? tags : undefined,
         text: text.trim() || undefined,
       });
+      // 체크아웃 했으니 예약된 1시간 알림은 취소
+      void cancelCheckInReminder(id);
       qc.invalidateQueries({ queryKey: ['place', res.place_id] });
       qc.invalidateQueries({ queryKey: ['my-checkins'] });
       qc.invalidateQueries({ queryKey: ['active-checkin'] });
-      setFinishedPlaceId(res.place_id);
-      setLiveOpen(true);
+      qc.invalidateQueries({ queryKey: ['favorites'] });
+      qc.invalidateQueries({ queryKey: ['live', res.place_id] });
+
+      router.replace(`/places/${res.place_id}`);
     } catch (e) {
       const msg =
         e instanceof ApiError && (e.body as { error?: string })?.error
@@ -73,12 +75,6 @@ export default function CheckOutScreen() {
       Alert.alert('실패', msg);
     } finally {
       setBusy(false);
-    }
-  }
-
-  function leaveToPlace() {
-    if (finishedPlaceId != null) {
-      router.replace(`/places/${finishedPlaceId}`);
     }
   }
 
@@ -131,22 +127,6 @@ export default function CheckOutScreen() {
           <Text style={styles.submitText}>{busy ? '저장 중…' : '제출하기'}</Text>
         </Pressable>
       </View>
-
-      {finishedPlaceId != null ? (
-        <LivePostComposer
-          visible={liveOpen}
-          placeId={finishedPlaceId}
-          placeName={place}
-          checkInId={id}
-          onClose={() => {
-            setLiveOpen(false);
-            leaveToPlace();
-          }}
-          onPosted={() => {
-            // onClose 가 leaveToPlace 호출하므로 여기선 아무것도 안 함
-          }}
-        />
-      ) : null}
     </KeyboardAvoidingView>
   );
 }

@@ -11,11 +11,17 @@ export type KakaoMapHandle = {
   setCenter: (lat: number, lng: number, level?: number) => void;
 };
 
+export type UserLocationMarker = {
+  lat: number;
+  lng: number;
+};
+
 export type KakaoMapProps = {
   latitude?: number;
   longitude?: number;
   level?: number;
   markers?: PlaceMarker[];
+  userLocation?: UserLocationMarker | null;
   onBoundsChange?: (b: MapBounds) => void;
   onMarkerPress?: (placeId: number) => void;
   onReady?: () => void;

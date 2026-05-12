@@ -25,7 +25,16 @@
       "Bash(curl -sSL -i -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/121.0.0.0 Safari/537.36' -H 'Referer: https://place.map.kakao.com/' -H 'Origin: https://place.map.kakao.com' -H 'Accept: application/json, text/plain, */*' https://place-api.map.kakao.com/places/panel3/53717932)",
       "Bash(npx tsc *)",
       "Bash(npx --prefix C:/Users/lsy_0/Documents/VibeMap/nunchimap tsc -p C:/Users/lsy_0/Documents/VibeMap/nunchimap --noEmit)",
-      "Bash(npx tsx *)"
+      "Bash(npx tsx *)",
+      "Bash(npm test *)",
+      "Bash(npx expo *)",
+      "Bash(git *)",
+      "Bash(git -C C:/Users/lsy_0/Documents/VibeMap/nunchimap-app show :components/LivePostComposer.tsx)",
+      "Bash(git -C C:/Users/lsy_0/Documents/VibeMap/nunchimap-app show :components/ActiveCheckInBanner.tsx)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -First 60)",
+      "Bash(rm -f app/modal.tsx components/EditScreenInfo.tsx components/StyledText.tsx components/Themed.tsx components/useColorScheme.ts components/useColorScheme.web.ts components/useClientOnlyValue.ts components/useClientOnlyValue.web.ts components/__tests__/StyledText-test.js)",
+      "Bash(rmdir components/__tests__)",
+      "PowerShell(Push-Location C:/Users/lsy_0/Documents/VibeMap/nunchimap; & npx.cmd tsc --noEmit 2>&1; $code = $LASTEXITCODE; Pop-Location; Write-Output \"exit=$code\")"
     ]
   }
 }

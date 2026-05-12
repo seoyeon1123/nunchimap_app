@@ -1,21 +1,16 @@
-import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+/**
+ * "리뷰 작성" 진입 화면 — 작성 방식 선택.
+ *
+ *  - 영수증 리뷰: OCR 미구현 (Phase 5), "준비 중" Alert 만 띄움.
+ *  - 직접 입력 리뷰: /review/manual/[placeId] 로 이동.
+ *
+ * GPS 인증("카공 시작")은 별도 흐름이라 여기서 다루지 않음.
+ * 카페 상세 화면의 "카공 시작" 버튼이 직접 처리.
+ */
+import { Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Location from 'expo-location';
-import { useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useMe } from '@/lib/hooks/useAuth';
-import { startGpsCheckIn } from '@/lib/api/checkins';
-import { ApiError } from '@/lib/api';
-import { getCurrentLocationOrPrompt } from '@/lib/location';
 import {
   fontSize,
   fontWeight,
@@ -25,21 +20,13 @@ import {
   spacing,
 } from '@/constants/Theme';
 
-export default function CheckInScreen() {
+export default function ReviewMethodScreen() {
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
   const id = Number(placeId);
   const router = useRouter();
-  const qc = useQueryClient();
   const { data: me, isLoading: meLoading } = useMe();
-  const [busy, setBusy] = useState(false);
 
-  if (meLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={palette.text} />
-      </View>
-    );
-  }
+  if (meLoading) return <View style={styles.center} />;
   if (!me) {
     return (
       <View style={styles.center}>
@@ -54,91 +41,51 @@ export default function CheckInScreen() {
     );
   }
 
-  async function handleGps() {
-    const loc = await getCurrentLocationOrPrompt(Location.Accuracy.High);
-    if (!loc) return;
-    setBusy(true);
-    try {
-      const res = await startGpsCheckIn({
-        place_id: id,
-        gps_lat: loc.latitude,
-        gps_lng: loc.longitude,
-        accuracy_m: loc.accuracy ?? undefined,
-      });
-      qc.invalidateQueries({ queryKey: ['active-checkin'] });
-      router.replace(
-        `/check-out/${res.check_in_id}?place=${encodeURIComponent(res.place_name)}`,
-      );
-    } catch (e) {
-      const msg =
-        e instanceof ApiError && (e.body as { error?: string })?.error
-          ? (e.body as { error: string }).error
-          : e instanceof Error
-            ? e.message
-            : '체크인 시작 실패';
-      Alert.alert('체크인 실패', msg);
-    } finally {
-      setBusy(false);
-    }
+  function handleReceipt() {
+    Alert.alert(
+      '준비 중',
+      '영수증 리뷰는 곧 열릴 예정이에요.\n조금만 기다려주세요!',
+    );
   }
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-    >
-      <Text style={styles.title}>어떻게 체크인할까요?</Text>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+      <Text style={styles.title}>어떤 리뷰를 작성할까요?</Text>
+
+      <Pressable style={styles.method} onPress={handleReceipt}>
+        <View style={styles.methodIconWrap}>
+          <FontAwesome name="file-text-o" size={18} color={palette.text} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.titleRow}>
+            <Text style={styles.methodTitle}>영수증 리뷰</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>준비 중</Text>
+            </View>
+          </View>
+          <Text style={styles.methodHint}>
+            영수증 사진으로 방문을 인증하고 작성
+          </Text>
+        </View>
+      </Pressable>
 
       <Pressable
         style={[styles.method, styles.methodPrimary]}
-        onPress={handleGps}
-        disabled={busy}
-      >
-        <View style={styles.methodIconWrap}>
-          {busy ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <FontAwesome name="location-arrow" size={20} color="white" />
-          )}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.methodTitle}>지금 GPS로 체크인</Text>
-          <Text style={styles.methodHint}>
-            카페 100m 이내에서 시작 → 나갈 때 마무리
-          </Text>
-        </View>
-      </Pressable>
-
-      <Pressable
-        style={styles.method}
         onPress={() => router.push(`/review/manual/${id}`)}
-        disabled={busy}
       >
-        <View style={styles.methodIconWrapDark}>
-          <FontAwesome name="pencil" size={18} color={palette.text} />
+        <View style={styles.methodIconWrapWhite}>
+          <FontAwesome name="pencil" size={18} color="white" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.methodTitle, styles.methodTitleDark]}>
-            지난 방문 직접 입력
+          <Text style={[styles.methodTitle, styles.methodTitleWhite]}>
+            직접 입력 리뷰
           </Text>
-          <Text style={styles.methodHint}>
-            이미 다녀온 곳을 한 번에 작성
+          <Text style={styles.methodHintWhite}>
+            방문했던 카페를 떠올리며 바로 작성
           </Text>
         </View>
-        <FontAwesome name="angle-right" size={16} color={palette.textDim} />
+        <FontAwesome name="angle-right" size={16} color="white" />
       </Pressable>
-
-      <View style={[styles.method, styles.methodDisabled]}>
-        <View style={styles.methodIconWrapDark}>
-          <FontAwesome name="file-text-o" size={18} color={palette.textDim} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.methodTitle, styles.methodTitleDisabled]}>
-            영수증 OCR
-          </Text>
-          <Text style={styles.methodHint}>준비 중</Text>
-        </View>
-      </View>
     </ScrollView>
   );
 }
@@ -172,16 +119,7 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   methodPrimary: { backgroundColor: palette.primary },
-  methodDisabled: { opacity: 0.6 },
   methodIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  methodIconWrapDark: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -189,17 +127,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  methodIconWrapWhite: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   methodTitle: {
     fontSize: fontSize.title,
     fontWeight: fontWeight.bold as '700',
-    color: 'white',
+    color: palette.text,
   },
-  methodTitleDark: { color: palette.text },
-  methodTitleDisabled: { color: palette.textDim },
+  methodTitleWhite: { color: 'white' },
   methodHint: {
     fontSize: fontSize.caption,
     color: palette.textDim,
     marginTop: 2,
+  },
+  methodHintWhite: {
+    fontSize: fontSize.caption,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: palette.border,
+  },
+  badgeText: {
+    fontSize: fontSize.micro,
+    color: palette.textMuted,
+    fontWeight: fontWeight.semibold as '600',
   },
   muted: { color: palette.textMuted, fontSize: fontSize.body },
   linkBtn: {

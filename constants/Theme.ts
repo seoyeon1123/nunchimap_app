@@ -8,7 +8,35 @@ import { Appearance, Platform, ViewStyle } from 'react-native';
  * 사용자가 런타임에 테마 변경 시 앱 재시작 필요 — 흔한 패턴.
  */
 
-const lightPalette = {
+type Palette = {
+  bg: string;
+  surface: string;
+  subtle: string;
+  overlay: string;
+
+  border: string;
+  borderStrong: string;
+
+  text: string;
+  textMuted: string;
+  textDim: string;
+  textOnPrimary: string;
+
+  primary: string;
+  accent: string;
+  accentSoft: string;
+
+  green: string;
+  greenSoft: string;
+  yellow: string;
+  yellowSoft: string;
+  red: string;
+  redSoft: string;
+  gray: string;
+  graySoft: string;
+};
+
+const lightPalette: Palette = {
   bg: '#F7F7F8',
   surface: '#FFFFFF',
   subtle: '#F1F1F3',
@@ -34,9 +62,9 @@ const lightPalette = {
   redSoft: '#FEE2E2',
   gray: '#9CA3AF',
   graySoft: '#F3F4F6',
-} as const;
+};
 
-const darkPalette: typeof lightPalette = {
+const darkPalette: Palette = {
   bg: '#0B0B0E',
   surface: '#16161B',
   subtle: '#1F1F25',

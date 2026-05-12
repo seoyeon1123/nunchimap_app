@@ -70,3 +70,42 @@ export async function fetchFavorites(): Promise<PlaceMarker[]> {
   const data = await api<{ places: PlaceMarker[] }>('/api/me/favorites');
   return data.places;
 }
+
+export interface CreatePlaceInput {
+  kakao_place_id: string;
+  name: string;
+  address?: string;
+  road_address?: string;
+  lat: number;
+  lng: number;
+}
+
+export interface CreatePlaceResponse {
+  id: number;
+  created: boolean;
+}
+
+export async function createPlace(
+  input: CreatePlaceInput,
+): Promise<CreatePlaceResponse> {
+  return api<CreatePlaceResponse>('/api/places', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export interface PopularTimesResponse {
+  day_of_week: number; // 0=일 ... 6=토
+  total: number;
+  buckets: { hour: number; count: number }[]; // 항상 24개
+}
+
+export async function fetchPopularTimes(
+  placeId: number,
+  dayOfWeek?: number,
+): Promise<PopularTimesResponse> {
+  const qs = dayOfWeek != null ? `?day=${dayOfWeek}` : '';
+  return api<PopularTimesResponse>(
+    `/api/places/${placeId}/popular-times${qs}`,
+  );
+}

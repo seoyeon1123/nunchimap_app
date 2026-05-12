@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { markOnboardingSeen } from '@/lib/onboarding';
 import {
   fontSize,
   fontWeight,
@@ -11,27 +12,15 @@ import {
   spacing,
 } from '@/constants/Theme';
 
-const AUTO_DISMISS_MS = 2500;
-
 export default function WelcomeScreen() {
   const router = useRouter();
   const dismissedRef = useRef(false);
 
-  function dismiss() {
+  function handleStart() {
     if (dismissedRef.current) return;
     dismissedRef.current = true;
+    markOnboardingSeen().catch(() => {});
     router.back();
-  }
-
-  // 자동 dismiss
-  useEffect(() => {
-    const t = setTimeout(dismiss, AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function handleStart() {
-    dismiss();
   }
 
   return (

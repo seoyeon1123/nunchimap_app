@@ -17,7 +17,6 @@ import { useMe, useLogin, useDevLogin, useLogout } from '@/lib/hooks/useAuth';
 import { fetchMyCheckIns } from '@/lib/api/me';
 import { deleteCheckIn } from '@/lib/api/checkins';
 import { fetchFavorites } from '@/lib/api/places';
-import ActiveCheckInBanner from '@/components/ActiveCheckInBanner';
 import { METHOD_LABEL, SIGNAL_DOT } from '@/lib/labels';
 import {
   fontSize,
@@ -134,8 +133,6 @@ export default function MeTab() {
           <Text style={styles.logoutText}>{busy ? '...' : '로그아웃'}</Text>
         </Pressable>
       </View>
-
-      <ActiveCheckInBanner style={{ marginHorizontal: 0, marginTop: 0 }} />
 
       {favorites.data && favorites.data.length > 0 ? (
         <View style={{ gap: spacing.sm }}>

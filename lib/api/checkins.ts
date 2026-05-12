@@ -78,3 +78,16 @@ export async function fetchActiveCheckIn(): Promise<ActiveCheckIn | null> {
   );
   return data.active;
 }
+
+export async function reportCheckIn(
+  checkInId: number,
+  reason?: string,
+): Promise<{ ok: boolean; place_id: number }> {
+  return api<{ ok: boolean; place_id: number }>(
+    `/api/check-ins/${checkInId}/report`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? null }),
+    },
+  );
+}
